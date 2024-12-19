@@ -1,8 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, session
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
-import uuid
 import re
 
 app = Flask(__name__)
@@ -46,8 +45,9 @@ def login():
         conn.close()
 
         if user and check_password_hash(user['password'], password):
+            session['username'] = username
             flash('Успешный вход!', 'success')
-            return redirect(url_for('index'))
+            return redirect(url_for('profile'))
         else:
             return render_template('login.html', error="Неправильный логин или пароль.")
     
@@ -62,7 +62,7 @@ def register():
         password = request.form.get('password')
         name = request.form.get('name')
         email = request.form.get('email')
-        about_me = request.form.get('about_me')
+        about = request.form.get('about')
         avatar = request.files.get('avatar')
 
         # Проверка на валидность данных
@@ -77,9 +77,13 @@ def register():
 
         conn = get_db_connection()
         try:
-            conn.execute('INSERT INTO users (username, password, name, email, about_me, avatar) VALUES (?, ?, ?, ?, ?, ?)',
-                         (username, hashed_password, name, email, about_me, avatar.filename if avatar else None))
+            conn.execute('INSERT INTO users (username, password, name, email, about, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+                         (username, hashed_password, name, email, about, avatar.filename if avatar else None))
             conn.commit()
+
+            if avatar and allowed_file(avatar.filename):
+                avatar.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename))
+
         except sqlite3.IntegrityError:
             return render_template('register.html', error="Пользователь с таким именем или email уже существует.")
         finally:
@@ -89,8 +93,55 @@ def register():
 
     return render_template('register.html')
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# Страница профиля
+@app.route('/profile')
+def profile():
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+    posts = conn.execute('SELECT * FROM posts WHERE user_id = ?', (user['id'],)).fetchall()
+    conn.close()
+    return render_template('profile.html', user=user, posts=posts)
+
+# Страница редактирования профиля
+@app.route('/edit_profile', methods=['GET', 'POST'])
+def edit_profile():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        about = request.form.get('about')
+        avatar = request.files.get('avatar')
+
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+
+        # Обновление данных пользователя
+        if password:
+            hashed_password = generate_password_hash(password)
+            conn.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, user['id']))
+        
+        conn.execute('UPDATE users SET username = ?, name = ?, email = ?, about = ?, avatar = ? WHERE id = ?',
+                     (username, name, email, about, avatar.filename if avatar else user['avatar'], user['id']))
+        
+        if avatar and allowed_file(avatar.filename):
+            avatar.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename))
+        
+        conn.commit()
+        conn.close()
+        session['username'] = username
+        return redirect(url_for('profile'))
+
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+    conn.close()
+    return render_template('edit_profile.html', user=user)
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    flash('Вы вышли из аккаунта.', 'info')
+    return redirect(url_for('login'))
 
 def validate_input(data, type='text'):
     """Проверка на валидность входных данных."""
@@ -98,6 +149,7 @@ def validate_input(data, type='text'):
         return bool(re.match(r'^[a-zA-Z0-9.,!?-]+$', data))  # Логин, имя, пароль
     if type == 'email':
         return bool(re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', data))  # Email
-    if type == 'price':
-        return float(data) > 0  # Цена не может быть отрицательной или нулевой
     return False
+
+if __name__ == '__main__':
+    app.run(debug=True)

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль пользователя</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+        }
+        header {
+            background-color: #333;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+        }
+        .board {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .announcement {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .announcement:last-child {
+            border-bottom: none;
+        }
+        .title {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .announcement .email {
+            font-size: 0.9em;
+            color: gray;
+        }
+        .avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .profile-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .profile-buttons button {
+            width: 48%;
+            background-color: #4CAF50; /* Зеленая кнопка для редактирования */
+        }
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Профиль пользователя: {{ user['username'] }}</h1>
+    </header>
+    <div class="container">
+        <div class="board">
+            <img src="{{ url_for('static', filename='avatars/' + user['avatar']) }}" alt="Аватар" class="avatar">
+            <div class="profile-buttons">
+                <button onclick="location.href='{{ url_for('edit_profile') }}'">Редактировать профиль</button>
+                <button onclick="location.href='{{ url_for('logout') }}'">Выйти</button>
+            </div>
+            <h2>Мои объявления</h2>
+            {% for post in posts %}
+            <div class="announcement">
+                <div class="title">{{ post.title }}</div>
+                <p>{{ post.content }}</p>
+                <p class="email">Email: {{ user['email'] }}</p>
+                <button>Редактировать объявление</button>
+                <button>Удалить объявление</button>
+            </div>
+            {% endfor %}
+            <button>Удалить аккаунт</button>
+        </div>
+    </div>
+    <footer>
+        <p>Бобоев Михаил Ниматбоевич ФБИ-24</p>
+    </footer>
+</body>
+</html>

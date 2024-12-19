@@ -1,56 +1,155 @@
+from flask import Flask, render_template, request, redirect, url_for, flash, session
+from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
+import re
 
-AVATAR_DIR = "avatars"
-os.makedirs(AVATAR_DIR, exist_ok=True)
+app = Flask(__name__)
+app.secret_key = 'supersecretkey'
 
-DB_FILE = "cache.db"
+# Константы
+UPLOAD_FOLDER = 'avatars'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+DATABASE = 'cache.db'
 
-# Создаем базу данных
-conn = sqlite3.connect(DB_FILE)
-c = conn.cursor()
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Создание таблицы пользователей
-c.execute('''
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL CHECK(length(username) > 0),
-    password TEXT NOT NULL CHECK(length(password) > 0),
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    avatar TEXT,
-    about TEXT,
-    is_admin INTEGER DEFAULT 0 CHECK(is_admin IN (0, 1))
-)
-''')
+# Проверка допустимых форматов файлов
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Создание таблицы объявлений
-c.execute('''
-CREATE TABLE IF NOT EXISTS posts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL CHECK(length(title) > 0),
-    content TEXT NOT NULL CHECK(length(content) > 0),
-    price REAL CHECK(price > 0),
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-)
-''')
+# Создание соединения с базой данных
+def get_db_connection():
+    conn = sqlite3.connect(DATABASE)
+    conn.row_factory = sqlite3.Row
+    return conn
 
-# Добавляем администратора!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-ADMIN_USERNAME = "hamzat"  
-ADMIN_PASSWORD = "hamzat"  
+# Главная страница
+@app.route('/')
+def index():
+    conn = get_db_connection()
+    posts = conn.execute('SELECT posts.title, posts.content, users.name FROM posts INNER JOIN users ON posts.user_id = users.id').fetchall()
+    conn.close()
+    return render_template('index.html', posts=posts)
 
-try:
-    c.execute('''
-    INSERT INTO users (username, password, name, email, is_admin)
-    VALUES (?, ?, ?, ?, 1)
-    ''', (ADMIN_USERNAME, ADMIN_PASSWORD, "Administrator", "admin@example.com"))
-    print("Администратор успешно добавлен.")
-except sqlite3.IntegrityError:
-    print("Администратор уже существует.")
+# Страница входа
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
 
-# Сохраняем изменения и закрываем соединение
-conn.commit()
-conn.close()
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
 
-print(f"База данных успешно создана: {DB_FILE}")
+        if user and check_password_hash(user['password'], password):
+            session['username'] = username
+            flash('Успешный вход!', 'success')
+            return redirect(url_for('profile'))
+        else:
+            return render_template('login.html', error="Неправильный логин или пароль.")
+    
+    return render_template('login.html')
+
+# Страница регистрации
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    """Страница регистрации."""
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        about = request.form.get('about')
+        avatar = request.files.get('avatar')
+
+        # Проверка на валидность данных
+        if not validate_input(username, 'text') or not validate_input(password, 'text') or not validate_input(name, 'text'):
+            return render_template('register.html', error="Недопустимые символы в данных.")
+        
+        if not validate_input(email, 'email'):
+            return render_template('register.html', error="Некорректный адрес электронной почты.")
+
+        # Хэширование пароля
+        hashed_password = generate_password_hash(password)
+
+        conn = get_db_connection()
+        try:
+            conn.execute('INSERT INTO users (username, password, name, email, about, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+                         (username, hashed_password, name, email, about, avatar.filename if avatar else None))
+            conn.commit()
+
+            if avatar and allowed_file(avatar.filename):
+                avatar.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename))
+
+        except sqlite3.IntegrityError:
+            return render_template('register.html', error="Пользователь с таким именем или email уже существует.")
+        finally:
+            conn.close()
+
+        return redirect(url_for('login'))
+
+    return render_template('register.html')
+
+# Страница профиля
+@app.route('/profile')
+def profile():
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+    posts = conn.execute('SELECT * FROM posts WHERE user_id = ?', (user['id'],)).fetchall()
+    conn.close()
+    return render_template('profile.html', user=user, posts=posts)
+
+# Страница редактирования профиля
+@app.route('/edit_profile', methods=['GET', 'POST'])
+def edit_profile():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        about = request.form.get('about')
+        avatar = request.files.get('avatar')
+
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+
+        # Обновление данных пользователя
+        if password:
+            hashed_password = generate_password_hash(password)
+            conn.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, user['id']))
+        
+        conn.execute('UPDATE users SET username = ?, name = ?, email = ?, about = ?, avatar = ? WHERE id = ?',
+                     (username, name, email, about, avatar.filename if avatar else user['avatar'], user['id']))
+        
+        if avatar and allowed_file(avatar.filename):
+            avatar.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename))
+        
+        conn.commit()
+        conn.close()
+        session['username'] = username
+        return redirect(url_for('profile'))
+
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+    conn.close()
+    return render_template('edit_profile.html', user=user)
+
+@app.route('/logout')
+def logout():
+    session.pop('username', None)
+    flash('Вы вышли из аккаунта.', 'info')
+    return redirect(url_for('login'))
+
+def validate_input(data, type='text'):
+    """Проверка на валидность входных данных."""
+    if type == 'text':
+        return bool(re.match(r'^[a-zA-Z0-9.,!?-]+$', data))  # Логин, имя, пароль
+    if type == 'email':
+        return bool(re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', data))  # Email
+    return False
+
+if __name__ == '__main__':
+    app.run(debug=True)
