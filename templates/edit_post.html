@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Редактировать объявление{% endblock %}
+
+{% block content %}
+<div class="register-form">
+    <h1>Редактировать объявление</h1>
+    {% if error %}
+        <p class="error">{{ error }}</p>
+    {% endif %}
+    <form action="{{ url_for('edit_post', post_id=post['id']) }}" method="POST">
+        <label for="title">Заголовок</label>
+        <input type="text" id="title" name="title" value="{{ post['title'] }}" required>
+
+        <label for="content">Содержание</label>
+        <textarea id="content" name="content" rows="4" required>{{ post['content'] }}</textarea>
+
+        <button type="submit" class="btn-green">Сохранить изменения</button>
+        <button type="button" onclick="location.href='{{ url_for('profile') }}'">Отмена</button>
+    </form>
+</div>
+{% endblock %}

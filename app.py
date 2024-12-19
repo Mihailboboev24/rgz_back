@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import os
@@ -98,9 +98,10 @@ def register():
 def profile():
     conn = get_db_connection()
     user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+    all_posts = conn.execute('SELECT posts.title, posts.content, users.email FROM posts INNER JOIN users ON posts.user_id = users.id').fetchall()
     posts = conn.execute('SELECT * FROM posts WHERE user_id = ?', (user['id'],)).fetchall()
     conn.close()
-    return render_template('profile.html', user=user, posts=posts)
+    return render_template('profile.html', user=user, posts=posts, all_posts=all_posts)
 
 # Страница редактирования профиля
 @app.route('/edit_profile', methods=['GET', 'POST'])
@@ -136,6 +137,65 @@ def edit_profile():
     user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
     conn.close()
     return render_template('edit_profile.html', user=user)
+
+# Маршрут для добавления объявления
+@app.route('/add_post', methods=['GET', 'POST'])
+def add_post():
+    if request.method == 'POST':
+        title = request.form.get('title')
+        content = request.form.get('content')
+
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+
+        conn.execute('INSERT INTO posts (title, content, user_id) VALUES (?, ?, ?)',
+                     (title, content, user['id']))
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for('profile'))
+
+    return render_template('add_post.html')
+
+# Маршрут для редактирования объявления
+@app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
+def edit_post(post_id):
+    conn = get_db_connection()
+    post = conn.execute('SELECT * FROM posts WHERE id = ?', (post_id,)).fetchone()
+
+    if request.method == 'POST':
+        title = request.form.get('title')
+        content = request.form.get('content')
+
+        conn.execute('UPDATE posts SET title = ?, content = ? WHERE id = ?',
+                     (title, content, post_id))
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for('profile'))
+
+    conn.close()
+    return render_template('edit_post.html', post=post)
+
+# Маршрут для удаления объявления
+@app.route('/delete_post/<int:post_id>', methods=['DELETE'])
+def delete_post(post_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM posts WHERE id = ?', (post_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+# Маршрут для удаления аккаунта
+@app.route('/delete_account', methods=['DELETE'])
+def delete_account():
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
+    conn.execute('DELETE FROM users WHERE id = ?', (user['id'],))
+    conn.commit()
+    conn.close()
+    session.pop('username', None)
+    return jsonify({'success': True})
 
 @app.route('/logout')
 def logout():

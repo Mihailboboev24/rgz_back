@@ -3,16 +3,13 @@
 {% block content %}
 <div class="board">
     <h2>Объявления</h2>
+    {% for post in posts %}
     <div class="announcement">
-        <div class="title">Продам ноутбук</div>
-        <p>Продаю ноутбук в отличном состоянии. Почти не использовался. 50 000 руб.</p>
-        <p>Автор: Иванов Иван</p>
+        <div class="title">{{ post.title }}</div>
+        <p>{{ post.content }}</p>
+        <p>Автор: {{ post.name }}</p>
     </div>
-    <div class="announcement">
-        <div class="title">Ищу работу</div>
-        <p>Опыт работы в IT. Готов к новым предложениям.</p>
-        <p>Автор: Петров Петр</p>
-    </div>
+    {% endfor %}
     <div>
         <a href="{{ url_for('login') }}">Войти</a> | <a href="{{ url_for('register') }}">Зарегистрироваться</a>
     </div>
