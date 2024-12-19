@@ -18,13 +18,13 @@ header {
 }
 
 .header-link {
-    color: inherit; 
+    color: inherit; /* Наследует цвет от родителя */
     text-decoration: none;
-    cursor: pointer; 
+    cursor: pointer; /* Добавляем курсор указателя */
 }
 
 .header-link:hover {
-    text-decoration: underline;
+    text-decoration: underline; /* Добавляет подчеркивание при наведении */
 }
 
 .board {
@@ -80,22 +80,22 @@ button {
     margin: 20px auto;
 }
 
-.register-form h1 {
+.register-form h1, .login-form h1 {
     text-align: center;
 }
 
-.register-form label {
+.register-form label, .login-form label {
     display: block;
     margin-top: 10px;
 }
 
-.register-form input, .register-form textarea {
-    width: calc(100% - 20px); 
+.register-form input, .register-form textarea, .login-form input {
+    width: calc(100% - 20px); /* Учтите padding */
     padding: 10px;
     margin-top: 5px;
 }
 
-.register-form button {
+.register-form button, .login-form button {
     width: calc(100% - 20px);
     padding: 10px;
     margin-top: 20px;
@@ -106,8 +106,31 @@ button {
     cursor: pointer;
 }
 
-.register-form button:hover {
+.register-form button:hover, .login-form button:hover {
     background-color: #45a049; /* Темнее при наведении */
+}
+
+.login-form {
+    background-color: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    margin: 50px auto;
+}
+
+.register-link {
+    text-align: center;
+    margin-top: 10px;
+}
+
+.register-link a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.register-link a:hover {
+    text-decoration: underline;
 }
 
 .error {

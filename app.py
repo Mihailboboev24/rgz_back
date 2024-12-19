@@ -37,7 +37,20 @@ def index():
 # Страница входа
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # Здесь должен быть код обработки входа, в зависимости от логики вашего приложения
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        conn = get_db_connection()
+        user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        conn.close()
+
+        if user and check_password_hash(user['password'], password):
+            flash('Успешный вход!', 'success')
+            return redirect(url_for('index'))
+        else:
+            return render_template('login.html', error="Неправильный логин или пароль.")
+    
     return render_template('login.html')
 
 # Страница регистрации
