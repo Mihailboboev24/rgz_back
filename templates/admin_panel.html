@@ -96,6 +96,7 @@
     <div class="container">
         <div class="board">
             <h2>Объявления</h2>
+            <button class="btn-green" onclick="location.href='{{ url_for('add_post') }}'">Добавить объявление</button>
             {% for post in posts %}
             <div class="announcement">
                 <div class="title">{{ post.title }}</div>

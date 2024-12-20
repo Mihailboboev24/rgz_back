@@ -8,12 +8,8 @@ app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
 # Константы
-UPLOAD_FOLDER = 'avatars'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 DATABASE = 'cache.db'
-
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Проверка допустимых форматов файлов
 def allowed_file(filename):
@@ -198,9 +194,13 @@ def add_post():
         conn.commit()
         conn.close()
 
-        return redirect(url_for('profile'))
+        if user['is_admin']:
+            return redirect(url_for('admin_panel'))
+        else:
+            return redirect(url_for('profile'))
 
     return render_template('add_post.html')
+
 
 # Маршрут для редактирования объявления
 @app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
