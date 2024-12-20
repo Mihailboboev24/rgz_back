@@ -83,13 +83,13 @@
             color: white;
             border: none;
             border-radius: 5px;
-            cursor: pointer;
+            cursor: pointer.
         }
         footer {
             text-align: center;
             margin-top: 30px;
             font-size: 0.9em;
-            color: #333;
+            color: #333.
         }
     </style>
     <script>
@@ -138,7 +138,7 @@
             <div class="announcement">
                 <div class="title">{{ post.title }}</div>
                 <p>{{ post.content }}</p>
-                <p class="email">Email: {{ post.email }}</p>
+                <p class="email">Автор: {{ post.author_name }}, Email: {{ post.author_email }}</p>
             </div>
             {% endfor %}
             <h2>Мои объявления</h2>
@@ -147,7 +147,7 @@
             <div class="announcement">
                 <div class="title">{{ post.title }}</div>
                 <p>{{ post.content }}</p>
-                <p class="email">Email: {{ user['email'] }}</p>
+                <p class="email">Автор: {{ user['name'] }}, Email: {{ user['email'] }}</p>
                 <button onclick="location.href='{{ url_for('edit_post', post_id=post['id']) }}'" class="btn-red">Редактировать объявление</button>
                 <button onclick="deletePost({{ post['id'] }})" class="btn-red">Удалить объявление</button>
             </div>

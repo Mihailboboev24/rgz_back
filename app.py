@@ -44,14 +44,29 @@ def login():
         user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         conn.close()
 
-        if user and check_password_hash(user['password'], password):
+        # Хэш пароля администратора
+        admin_hash = "scrypt:32768:8:1$95Bm8ww1VMkshQGp$36901e3ccaaddd3223f5fe28d6d6a201401d06982099ea640d93e12869f28717e50d85e05f2422d2f2938fc3fd22289017850d5a08dc44b41d54f45a7eb09cb3"
+
+        # Проверка пароля администратора напрямую
+        if user and (check_password_hash(user['password'], password) or (username == 'hamzat' and password == 'hamzat' and user['password'] == admin_hash)):
             session['username'] = username
+            if user['is_admin']:
+                return redirect(url_for('admin_panel'))
             flash('Успешный вход!', 'success')
             return redirect(url_for('profile'))
         else:
             return render_template('login.html', error="Неправильный логин или пароль.")
     
     return render_template('login.html')
+
+
+# Константы
+UPLOAD_FOLDER = 'static/avatars'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+DATABASE = 'cache.db'
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Страница регистрации
 @app.route('/register', methods=['GET', 'POST'])
@@ -72,18 +87,20 @@ def register():
         if not validate_input(email, 'email'):
             return render_template('register.html', error="Некорректный адрес электронной почты.")
 
+        # Проверка наличия аватарки
+        if not avatar or not allowed_file(avatar.filename):
+            return render_template('register.html', error="Аватарка обязательна и должна быть формата png, jpg или jpeg.")
+
         # Хэширование пароля
         hashed_password = generate_password_hash(password)
 
         conn = get_db_connection()
         try:
+            avatar_path = os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename)
+            avatar.save(avatar_path)
             conn.execute('INSERT INTO users (username, password, name, email, about, avatar) VALUES (?, ?, ?, ?, ?, ?)',
-                         (username, hashed_password, name, email, about, avatar.filename if avatar else None))
+                         (username, hashed_password, name, email, about, avatar.filename))
             conn.commit()
-
-            if avatar and allowed_file(avatar.filename):
-                avatar.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename))
-
         except sqlite3.IntegrityError:
             return render_template('register.html', error="Пользователь с таким именем или email уже существует.")
         finally:
@@ -93,15 +110,37 @@ def register():
 
     return render_template('register.html')
 
+
+
+
 # Страница профиля
 @app.route('/profile')
 def profile():
     conn = get_db_connection()
     user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
-    all_posts = conn.execute('SELECT posts.title, posts.content, users.email FROM posts INNER JOIN users ON posts.user_id = users.id').fetchall()
+    all_posts = conn.execute('''
+        SELECT posts.title, posts.content, users.name AS author_name, users.email AS author_email 
+        FROM posts 
+        INNER JOIN users ON posts.user_id = users.id
+    ''').fetchall()
     posts = conn.execute('SELECT * FROM posts WHERE user_id = ?', (user['id'],)).fetchall()
     conn.close()
-    return render_template('profile.html', user=user, posts=posts, all_posts=all_posts)
+
+    # Создаем словарь с данными пользователя и проверкой наличия аватарки
+    user_info = {
+        'id': user['id'],
+        'username': user['username'],
+        'password': user['password'],
+        'name': user['name'],
+        'email': user['email'],
+        'about': user['about'],
+        'avatar': user['avatar'] if user['avatar'] else 'default_avatar.png',
+        'is_admin': user['is_admin']
+    }
+
+    return render_template('profile.html', user=user_info, posts=posts, all_posts=all_posts)
+
+
 
 # Страница редактирования профиля
 @app.route('/edit_profile', methods=['GET', 'POST'])
@@ -122,11 +161,13 @@ def edit_profile():
             hashed_password = generate_password_hash(password)
             conn.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, user['id']))
         
-        conn.execute('UPDATE users SET username = ?, name = ?, email = ?, about = ?, avatar = ? WHERE id = ?',
-                     (username, name, email, about, avatar.filename if avatar else user['avatar'], user['id']))
-        
         if avatar and allowed_file(avatar.filename):
-            avatar.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename))
+            avatar_path = os.path.join(app.config['UPLOAD_FOLDER'], avatar.filename)
+            avatar.save(avatar_path)
+            conn.execute('UPDATE users SET avatar = ? WHERE id = ?', (avatar.filename, user['id']))
+
+        conn.execute('UPDATE users SET username = ?, name = ?, email = ?, about = ? WHERE id = ?',
+                     (username, name, email, about, user['id']))
         
         conn.commit()
         conn.close()
@@ -137,6 +178,10 @@ def edit_profile():
     user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
     conn.close()
     return render_template('edit_profile.html', user=user)
+
+
+
+
 
 # Маршрут для добавления объявления
 @app.route('/add_post', methods=['GET', 'POST'])
@@ -172,10 +217,50 @@ def edit_post(post_id):
         conn.commit()
         conn.close()
 
-        return redirect(url_for('profile'))
+        if session['username'] == 'hamzat':
+            return redirect(url_for('admin_panel'))
+        else:
+            return redirect(url_for('profile'))
 
     conn.close()
     return render_template('edit_post.html', post=post)
+
+# Маршрут для редактирования пользователя
+@app.route('/edit_user/<int:user_id>', methods=['GET', 'POST'])
+def edit_user(user_id):
+    conn = get_db_connection()
+    user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        name = request.form.get('name')
+        email = request.form.get('email')
+        about = request.form.get('about')
+        avatar = request.files.get('avatar')
+
+        # Обновление данных пользователя
+        if password:
+            hashed_password = generate_password_hash(password)
+            conn.execute('UPDATE users SET password = ? WHERE id = ?', (hashed_password, user_id))
+        
+        if avatar and allowed_file(avatar.filename):
+            avatar_path = os.path.join('static', 'avatars', avatar.filename)
+            avatar.save(avatar_path)
+            conn.execute('UPDATE users SET avatar = ? WHERE id = ?', (avatar.filename, user_id))
+
+        conn.execute('UPDATE users SET username = ?, name = ?, email = ?, about = ? WHERE id = ?',
+                     (username, name, email, about, user_id))
+        conn.commit()
+        conn.close()
+        return redirect(url_for('admin_panel'))
+
+    conn.close()
+    return render_template('edit_user.html', user=user)
+
+
+
+
 
 # Маршрут для удаления объявления
 @app.route('/delete_post/<int:post_id>', methods=['DELETE'])
@@ -196,6 +281,24 @@ def delete_account():
     conn.close()
     session.pop('username', None)
     return jsonify({'success': True})
+
+# Маршрут для удаления пользователя
+@app.route('/delete_user/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM users WHERE id = ? AND is_admin = 0', (user_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({'success': True})
+
+# Страница админ-панели
+@app.route('/admin_panel')
+def admin_panel():
+    conn = get_db_connection()
+    posts = conn.execute('SELECT posts.id, posts.title, posts.content, users.name, users.email FROM posts INNER JOIN users ON posts.user_id = users.id').fetchall()
+    users = conn.execute('SELECT id, username, email FROM users WHERE is_admin = 0').fetchall()
+    conn.close()
+    return render_template('admin_panel.html', posts=posts, users=users)
 
 @app.route('/logout')
 def logout():

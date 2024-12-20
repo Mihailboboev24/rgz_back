@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Админ панель</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            width: 80%;
+            margin: auto;
+        }
+        header {
+            background-color: #333;
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+        }
+        .board {
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .announcement, .user {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+        .announcement:last-child, .user:last-child {
+            border-bottom: none;
+        }
+        .title {
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .user .email, .announcement .email {
+            font-size: 0.9em;
+            color: gray;
+        }
+        button {
+            padding: 10px;
+            background-color: #ff4444;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-green {
+            background-color: #4CAF50;
+        }
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.9em;
+            color: #333;
+        }
+    </style>
+    <script>
+        function deletePost(postId) {
+            if (confirm("Вы действительно хотите удалить это объявление?")) {
+                fetch(`/delete_post/${postId}`, { method: 'DELETE' })
+                    .then(response => {
+                        if (response.ok) {
+                            location.reload();
+                        } else {
+                            alert("Ошибка при удалении объявления.");
+                        }
+                    });
+            }
+        }
+
+        function deleteUser(userId) {
+            if (confirm("Вы действительно хотите удалить этого пользователя?")) {
+                fetch(`/delete_user/${userId}`, { method: 'DELETE' })
+                    .then(response => {
+                        if (response.ok) {
+                            location.reload();
+                        } else {
+                            alert("Ошибка при удалении пользователя.");
+                        }
+                    });
+            }
+        }
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Админ панель</h1>
+    </header>
+    <div class="container">
+        <div class="board">
+            <h2>Объявления</h2>
+            {% for post in posts %}
+            <div class="announcement">
+                <div class="title">{{ post.title }}</div>
+                <p>{{ post.content }}</p>
+                <p class="email">Автор: {{ post.name }}, Email: {{ post.email }}</p>
+                <button onclick="deletePost({{ post.id }})">Удалить объявление</button>
+                <button onclick="location.href='{{ url_for('edit_post', post_id=post.id) }}'">Редактировать объявление</button>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="board">
+            <h2>Пользователи</h2>
+            {% for user in users %}
+            <div class="user">
+                <p>Имя пользователя: {{ user.username }}</p>
+                <p class="email">Email: {{ user.email }}</p>
+                <button class="btn-green" onclick="location.href='{{ url_for('edit_user', user_id=user.id) }}'">Редактировать пользователя</button>
+                <button onclick="deleteUser({{ user.id }})">Удалить пользователя</button>
+            </div>
+            {% endfor %}
+            <button onclick="location.href='{{ url_for('logout') }}'" class="btn-red">Выйти</button>
+        </div>
+    </div>
+    <footer>
+        <p>Бобоев Михаил Ниматбоевич ФБИ-24</p>
+    </footer>
+</body>
+</html>
