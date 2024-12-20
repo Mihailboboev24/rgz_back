@@ -115,14 +115,13 @@ def profile():
     conn = get_db_connection()
     user = conn.execute('SELECT * FROM users WHERE username = ?', (session['username'],)).fetchone()
     all_posts = conn.execute('''
-        SELECT posts.title, posts.content, users.name AS author_name, users.email AS author_email 
+        SELECT posts.title, posts.content, users.name AS author_name, users.email AS author_email
         FROM posts 
         INNER JOIN users ON posts.user_id = users.id
     ''').fetchall()
     posts = conn.execute('SELECT * FROM posts WHERE user_id = ?', (user['id'],)).fetchall()
     conn.close()
 
-    # Создаем словарь с данными пользователя и проверкой наличия аватарки
     user_info = {
         'id': user['id'],
         'username': user['username'],
@@ -135,6 +134,9 @@ def profile():
     }
 
     return render_template('profile.html', user=user_info, posts=posts, all_posts=all_posts)
+
+
+
 
 
 
